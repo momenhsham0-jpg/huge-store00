@@ -1,0 +1,1295 @@
+```react
+import React, { useState, useEffect } from 'react';
+import { 
+  Smartphone, ShieldCheck, Wallet, ArrowUpRight, ArrowDownLeft, 
+  User, Headset, CheckCircle2, Clock, XCircle, ChevronRight, 
+  TrendingUp, Award, Layers, Zap, LogOut, PlusCircle, RefreshCw, 
+  Check, X, AlertCircle, Sparkles, ShoppingBag, DollarSign, Lock, Settings
+} from 'lucide-react';
+
+// --- INITIAL MOCK DATABASE ---
+const INITIAL_USERS = [
+  {
+    id: 'admin-01',
+    phone: '01115081946',
+    isAdmin: true,
+    balance: 50000,
+    vipLevel: 'VIP5',
+    completedTasksToday: 0,
+    maxDailyTasks: 10,
+    totalEarnings: 12500,
+    customTaskEarnings: null, // Custom earnings array per task set by admin
+    createdAt: new Date().toLocaleDateString('ar-EG')
+  },
+  {
+    id: 'user-01',
+    phone: '01012345678',
+    isAdmin: false,
+    balance: 0,
+    vipLevel: 'VIP0',
+    completedTasksToday: 0,
+    maxDailyTasks: 5,
+    totalEarnings: 0,
+    customTaskEarnings: null,
+    createdAt: new Date().toLocaleDateString('ar-EG')
+  }
+];
+
+const INITIAL_TRANSACTIONS = [
+  {
+    id: 'tx-101',
+    userId: 'user-01',
+    phone: '01012345678',
+    type: 'deposit',
+    amount: 100,
+    walletNumber: '01012345678',
+    status: 'pending',
+    date: new Date().toLocaleString('ar-EG')
+  }
+];
+
+const MOCK_PRODUCTS = [
+  { id: 1, name: 'سماعات لاسلكية فاخرة Noise-Canceling', price: 450, rating: 4.9, image: '🎧' },
+  { id: 2, name: 'ساعة ذكية AMOLED مقاومة للماء', price: 890, rating: 4.8, image: '⌚' },
+  { id: 3, name: 'كاميرا تصوير احترافية 4K', price: 2100, rating: 5.0, image: '📷' },
+  { id: 4, name: 'جهاز لوحي ذكي 11 بوصة Ultra', price: 1550, rating: 4.7, image: '📱' },
+  { id: 5, name: 'حذاء رياضي ذكي للتمارين', price: 320, rating: 4.6, image: '👟' },
+];
+
+export default function App() {
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('app_users_v2');
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
+
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem('app_transactions_v2');
+    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+  });
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('app_current_user_v2');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_users_v2', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('app_transactions_v2', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('app_current_user_v2', JSON.stringify(currentUser));
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      const updated = users.find(u => u.phone === currentUser.phone);
+      if (updated) {
+        setCurrentUser(updated);
+      }
+    }
+  }, [users]);
+
+  const handleLogin = (phoneInput) => {
+    const cleanPhone = phoneInput.trim();
+    let user = users.find(u => u.phone === cleanPhone);
+
+    if (cleanPhone === '01115081946') {
+      if (!user) {
+        user = {
+          id: `admin-${Date.now()}`,
+          phone: cleanPhone,
+          isAdmin: true,
+          balance: 100000,
+          vipLevel: 'VIP5',
+          completedTasksToday: 0,
+          maxDailyTasks: 10,
+          totalEarnings: 25000,
+          customTaskEarnings: null,
+          createdAt: new Date().toLocaleDateString('ar-EG')
+        };
+        setUsers(prev => [...prev, user]);
+      }
+    } else if (!user) {
+      // NEW USER RULES: VIP0, 0 Balance, 5 Gift Tasks
+      user = {
+        id: `user-${Date.now()}`,
+        phone: cleanPhone,
+        isAdmin: false,
+        balance: 0,
+        vipLevel: 'VIP0',
+        completedTasksToday: 0,
+        maxDailyTasks: 5,
+        totalEarnings: 0,
+        customTaskEarnings: null,
+        createdAt: new Date().toLocaleDateString('ar-EG')
+      };
+      setUsers(prev => [...prev, user]);
+    }
+
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('app_current_user_v2');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans dir-rtl selection:bg-cyan-500 selection:text-white" dir="rtl">
+      {!currentUser ? (
+        <AuthScreen onLogin={handleLogin} />
+      ) : currentUser.isAdmin ? (
+        <AdminDashboard 
+          admin={currentUser} 
+          users={users} 
+          setUsers={setUsers} 
+          transactions={transactions} 
+          setTransactions={setTransactions} 
+          onLogout={handleLogout} 
+        />
+      ) : (
+        <UserDashboard 
+          user={currentUser} 
+          users={users}
+          setUsers={setUsers} 
+          transactions={transactions} 
+          setTransactions={setTransactions} 
+          onLogout={handleLogout} 
+        />
+      )}
+    </div>
+  );
+}
+
+/* =========================================================================
+   1. AUTHENTICATION COMPONENT
+   ========================================================================= */
+function AuthScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!phone || phone.length < 10) {
+      setError('يرجى إدخال رقم هاتف صحيح مكون من 11 رقم');
+      return;
+    }
+    setError('');
+    onLogin(phone);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center px-4 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl z-10">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-cyan-500/20">
+            <Zap className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            منصة المهام الرقمية
+          </h1>
+          <p className="text-sm text-slate-400 mt-2">قم بتسجيل الدخول الفوري برقم الهاتف فقط</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-2">رقم الهاتف المحمول</label>
+            <div className="relative">
+              <input
+                type="tel"
+                placeholder="01xxxxxxxxx"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyan-500 rounded-2xl py-3.5 px-11 text-white text-left placeholder-slate-600 outline-none transition-all duration-200 text-lg tracking-wider"
+                dir="ltr"
+              />
+              <Smartphone className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+            </div>
+            {error && <p className="text-xs text-red-400 mt-2 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5"/> {error}</p>}
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-bold text-white shadow-lg shadow-cyan-500/25 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <span>دخول إلى المنصة</span>
+            <ChevronRight className="w-5 h-5 rotate-180" />
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            * للحسابات الجديدة: البداية بحساب VIP0 و 5 مهام هدايا.
+            <br />
+            تلميح المشرف: استخدم الرقم <span className="font-mono text-cyan-400">01115081946</span> للدخول للوحة التحكم.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   2. USER DASHBOARD & NAVIGATION
+   ========================================================================= */
+function UserDashboard({ user, users, setUsers, transactions, setTransactions, onLogout }) {
+  const [activeTab, setActiveTab] = useState('home');
+
+  return (
+    <div className="min-h-screen flex flex-col pb-24 md:pb-0 md:pr-64 bg-slate-950">
+      <aside className="hidden md:flex flex-col fixed right-0 top-0 bottom-0 w-64 bg-slate-900 border-l border-slate-800 p-6 z-30">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 bg-cyan-500 rounded-xl flex items-center justify-center font-bold text-white shadow-md shadow-cyan-500/20">
+            <Zap className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-100 text-sm">Task Platform</h2>
+            <span className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider">نسخة التجربة</span>
+          </div>
+        </div>
+
+        <nav className="space-y-2 flex-1">
+          <NavBtn icon={<ShoppingBag />} label="الرئيسية" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
+          <NavBtn icon={<Zap />} label="التقاط المهام" active={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} />
+          <NavBtn icon={<ArrowDownLeft />} label="إيداع رصيد" active={activeTab === 'deposit'} onClick={() => setActiveTab('deposit')} />
+          <NavBtn icon={<ArrowUpRight />} label="سحب الأرباح" active={activeTab === 'withdraw'} onClick={() => setActiveTab('withdraw')} />
+          <NavBtn icon={<User />} label="الملف الشخصي" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
+          <NavBtn icon={<Headset />} label="الدعم والخدمة" active={activeTab === 'support'} onClick={() => setActiveTab('support')} />
+        </nav>
+
+        <button 
+          onClick={onLogout}
+          className="flex items-center gap-3 w-full px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition text-sm font-medium mt-auto"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>تسجيل الخروج</span>
+        </button>
+      </aside>
+
+      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full">
+        <header className="flex justify-between items-center mb-6 bg-slate-900/50 backdrop-blur border border-slate-800/80 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md">
+              {user.phone.slice(-2)}
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">أهلاً بك 👋</p>
+              <p className="font-bold text-slate-200 dir-ltr text-right">{user.phone}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border ${
+              user.vipLevel === 'VIP0' 
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
+                : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+            }`}>
+              <Award className="w-3.5 h-3.5" />
+              {user.vipLevel}
+            </span>
+          </div>
+        </header>
+
+        {activeTab === 'home' && <HomeScreen user={user} setActiveTab={setActiveTab} />}
+        {activeTab === 'tasks' && <TasksScreen user={user} users={users} setUsers={setUsers} />}
+        {activeTab === 'deposit' && <DepositScreen user={user} transactions={transactions} setTransactions={setTransactions} />}
+        {activeTab === 'withdraw' && <WithdrawScreen user={user} users={users} setUsers={setUsers} transactions={transactions} setTransactions={setTransactions} setActiveTab={setActiveTab} />}
+        {activeTab === 'profile' && <ProfileScreen user={user} transactions={transactions} onLogout={onLogout} />}
+        {activeTab === 'support' && <SupportScreen />}
+      </main>
+
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 flex justify-around items-center py-2.5 px-2 z-40">
+        <MobileNavBtn icon={<ShoppingBag className="w-5 h-5" />} label="الرئيسية" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
+        <MobileNavBtn icon={<Zap className="w-5 h-5" />} label="المهام" active={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} highlight />
+        <MobileNavBtn icon={<ArrowDownLeft className="w-5 h-5" />} label="إيداع" active={activeTab === 'deposit'} onClick={() => setActiveTab('deposit')} />
+        <MobileNavBtn icon={<ArrowUpRight className="w-5 h-5" />} label="سحب" active={activeTab === 'withdraw'} onClick={() => setActiveTab('withdraw')} />
+        <MobileNavBtn icon={<User className="w-5 h-5" />} label="حسابي" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
+      </nav>
+    </div>
+  );
+}
+
+function NavBtn({ icon, label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition text-sm font-medium ${
+        active 
+          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
+          : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+      }`}
+    >
+      {React.cloneElement(icon, { className: 'w-5 h-5' })}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MobileNavBtn({ icon, label, active, onClick, highlight }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 transition-all ${
+        active ? 'text-cyan-400 scale-105' : 'text-slate-400'
+      }`}
+    >
+      <div className={highlight && !active ? 'p-1.5 bg-cyan-500 text-white rounded-full shadow-lg shadow-cyan-500/30' : ''}>
+        {icon}
+      </div>
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
+  );
+}
+
+/* --- HOME SCREEN --- */
+function HomeScreen({ user, setActiveTab }) {
+  return (
+    <div className="space-y-6">
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+          <div>
+            <span className="text-xs text-slate-400 font-medium">الرصيد المتاح بالحساب</span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+                {user.balance.toLocaleString('ar-EG')}
+              </h1>
+              <span className="text-sm text-cyan-400 font-bold">ج.م</span>
+            </div>
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <button
+              onClick={() => setActiveTab('deposit')}
+              className="flex-1 md:flex-none px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+            >
+              <ArrowDownLeft className="w-4 h-4" />
+              <span>شحن رصيد</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('withdraw')}
+              className="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-sm border border-slate-700 transition flex items-center justify-center gap-2"
+            >
+              <ArrowUpRight className="w-4 h-4" />
+              <span>سحب أرباح</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+          <div>
+            <p className="text-xs text-slate-400">إجمالي الأرباح المكتسبة</p>
+            <p className="text-lg font-bold text-emerald-400 mt-0.5">{user.totalEarnings.toLocaleString('ar-EG')} ج.م</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">مهام اليوم المكتملة</p>
+            <p className="text-lg font-bold text-indigo-400 mt-0.5">{user.completedTasksToday} / {user.maxDailyTasks || 5}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Upgrade Banner if VIP0 */}
+      {user.vipLevel === 'VIP0' && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-900/20 to-slate-900 border border-amber-500/30 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/20 border border-amber-500/40 rounded-2xl flex items-center justify-center text-amber-400 shrink-0">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-300 text-sm">أنت حالياً في مستوى VIP 0 (هدية الترحيب)</h3>
+              <p className="text-xs text-slate-300 mt-1">قم بإيداع 100 ج.م للترقية إلى VIP1 لفتح إمكانية سحب أرباحك وفتح 5 مهام جديدة بأرباح تصل لـ 200 ج.م!</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('deposit')}
+            className="w-full md:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition whitespace-nowrap"
+          >
+            ترقية إلى VIP1 الآن (إيداع 100 ج.م)
+          </button>
+        </div>
+      )}
+
+      <div 
+        onClick={() => setActiveTab('tasks')}
+        className="bg-gradient-to-r from-violet-900/40 via-purple-900/30 to-slate-900 border border-violet-500/30 rounded-2xl p-5 cursor-pointer hover:border-violet-500/60 transition group flex justify-between items-center"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-violet-600/20 border border-violet-500/40 rounded-2xl flex items-center justify-center text-violet-400 group-hover:scale-110 transition">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-base">مركز الترويج واقتناص المهام</h3>
+            <p className="text-xs text-slate-400 mt-0.5">انقر هنا للبدء في تنفيذ المهام اليومية وجني عمولات فورية</p>
+          </div>
+        </div>
+        <ChevronRight className="w-6 h-6 text-slate-400 rotate-180 group-hover:text-violet-400 transition" />
+      </div>
+
+      <div>
+        <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2 text-sm">
+          <ShoppingBag className="w-4 h-4 text-cyan-400" />
+          <span>المنتجات المتاحة للترويج اليوم</span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {MOCK_PRODUCTS.map(product => (
+            <div key={product.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+              <div className="w-16 h-16 bg-slate-950 rounded-xl flex items-center justify-center text-3xl border border-slate-800">
+                {product.image}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-sm text-slate-200 truncate">{product.name}</h4>
+                <div className="flex items-center gap-3 mt-2 text-xs">
+                  <span className="text-slate-400">القيمة: <strong className="text-white">{product.price} ج.م</strong></span>
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">عمولة ممتازة</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* --- TASKS SCREEN --- */
+function TasksScreen({ user, users, setUsers }) {
+  const [loading, setLoading] = useState(false);
+  const [completedTask, setCompletedTask] = useState(null);
+
+  const maxTasks = user.maxDailyTasks || 5;
+
+  const handleGrabTask = () => {
+    if (user.completedTasksToday >= maxTasks) {
+      alert(`لقد استكملت الحد الأقصى للمهام اليومية (${maxTasks}/${maxTasks})`);
+      return;
+    }
+
+    setLoading(true);
+    setCompletedTask(null);
+
+    setTimeout(() => {
+      const randomProduct = MOCK_PRODUCTS[Math.floor(Math.random() * MOCK_PRODUCTS.length)];
+      let taskCommission = 0;
+
+      // Check if Admin set custom earnings array for this user
+      if (user.customTaskEarnings && user.customTaskEarnings[user.completedTasksToday] !== undefined) {
+        taskCommission = Number(user.customTaskEarnings[user.completedTasksToday]);
+      } else {
+        // AUTOMATIC REWARD LOGIC:
+        if (user.vipLevel === 'VIP0') {
+          // VIP 0 Reward: Total 50-75 EGP across 5 tasks (~10 to 15 EGP per task)
+          // Range for single task: 10 - 15 EGP
+          taskCommission = Math.floor(Math.random() * (15 - 10 + 1)) + 10;
+        } else if (user.vipLevel === 'VIP1') {
+          // VIP 1 Reward: Total 50-200 EGP across 5 tasks (~10 to 40 EGP per task)
+          // Range for single task: 10 - 40 EGP
+          taskCommission = Math.floor(Math.random() * (40 - 10 + 1)) + 10;
+        } else {
+          // VIP2+ Higher rewards
+          taskCommission = Math.floor(Math.random() * (70 - 30 + 1)) + 30;
+        }
+      }
+
+      const updatedUsers = users.map(u => {
+        if (u.phone === user.phone) {
+          return {
+            ...u,
+            balance: u.balance + taskCommission,
+            totalEarnings: u.totalEarnings + taskCommission,
+            completedTasksToday: u.completedTasksToday + 1
+          };
+        }
+        return u;
+      });
+
+      setUsers(updatedUsers);
+      setCompletedTask({
+        ...randomProduct,
+        commission: taskCommission
+      });
+      setLoading(false);
+    }, 1200);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center">
+        <div className="w-16 h-16 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan-500/20">
+          <Zap className="w-8 h-8 animate-pulse" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">التقاط الطلبات الآلي</h2>
+        <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+          انقر على الزر أدناه لمطابقة المنتجات ذات العمولات المرتفعة وتأكيد الترويج لها لإضافة العمولة لحسابك مباشرة.
+        </p>
+
+        <div className="mt-6 inline-flex items-center gap-3 bg-slate-950 px-5 py-2.5 rounded-2xl border border-slate-800">
+          <span className="text-xs text-slate-400">المهام المكتملة اليوم:</span>
+          <span className="font-bold text-cyan-400 text-sm">{user.completedTasksToday} / {maxTasks}</span>
+        </div>
+
+        <div className="mt-6">
+          <button
+            onClick={handleGrabTask}
+            disabled={loading || user.completedTasksToday >= maxTasks}
+            className={`w-full max-w-xs py-4 rounded-2xl font-bold text-white shadow-xl transition-all duration-200 ${
+              user.completedTasksToday >= maxTasks
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/20 active:scale-95'
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                جاري مطابقة الطلب...
+              </span>
+            ) : user.completedTasksToday >= maxTasks ? (
+              'تم استكمال مهام اليوم'
+            ) : (
+              'ابدأ الترويج واقتناص الطلب'
+            )}
+          </button>
+        </div>
+      </div>
+
+      {completedTask && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl">
+              {completedTask.image}
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-emerald-300">تم الترويج بنجاح!</h4>
+              <p className="text-xs text-slate-300 mt-1">{completedTask.name}</p>
+            </div>
+          </div>
+          <div className="text-left">
+            <span className="text-xs text-slate-400 block">العمولة المكتسبة</span>
+            <span className="text-lg font-bold text-emerald-400">+ {completedTask.commission} ج.م</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --- DEPOSIT SCREEN --- */
+function DepositScreen({ user, transactions, setTransactions }) {
+  const [amount, setAmount] = useState('');
+  const [wallet, setWallet] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleDepositSubmit = (e) => {
+    e.preventDefault();
+    if (!amount || Number(amount) <= 0) {
+      alert('يرجى إدخال مبلغ صحيح');
+      return;
+    }
+
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      userId: user.id,
+      phone: user.phone,
+      type: 'deposit',
+      amount: Number(amount),
+      walletNumber: wallet || 'محفظة إلكترونية',
+      status: 'pending',
+      date: new Date().toLocaleString('ar-EG')
+    };
+
+    setTransactions([newTx, ...transactions]);
+    setSubmitted(true);
+    setAmount('');
+    setWallet('');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+        <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <ArrowDownLeft className="w-5 h-5 text-cyan-400" />
+          <span>إيداع رصيد جديد</span>
+        </h2>
+        <p className="text-xs text-slate-400 mb-6">قم بتحويل المبلغ إلى حساب المحفظة أدناه ثم قم بإرسال الطلب للترقية أو زيادة الرصيد</p>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6 space-y-3">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-400">طريقة التحويل المتاحة:</span>
+            <span className="text-cyan-400 font-bold">فودافون كاش / محفظة إلكترونية</span>
+          </div>
+          <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-800">
+            <span className="text-slate-400">رقم المحفظة لاستقبال الإيداع:</span>
+            <span className="font-mono text-white bg-slate-900 px-3 py-1 rounded-lg border border-slate-700 select-all font-bold">
+              01115081946
+            </span>
+          </div>
+          <div className="text-[11px] text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+            * ملحوظة للعملاء التنسيقيين: الإيداع بقيمة 100 ج.م يرقي حسابك تلقائياً إلى VIP1 ويفتح إمكانية السحب و 5 مهام إضافية.
+          </div>
+        </div>
+
+        {submitted && (
+          <div className="mb-6 p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center gap-3 text-cyan-400 text-xs">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <span>تم إرسال طلب الإيداع بنجاح! وهو الآن قيد المراجعة وتأكيد الترقية من قبل المشرف.</span>
+          </div>
+        )}
+
+        <form onSubmit={handleDepositSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-2">مبلغ الإيداع (بالجنية المصري)</label>
+            <input
+              type="number"
+              placeholder="مثال: 100"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl py-3 px-4 text-white text-sm outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-2">رقم المحفظة التي قمت بالتحويل منها</label>
+            <input
+              type="tel"
+              placeholder="01xxxxxxxxx"
+              value={wallet}
+              onChange={(e) => setWallet(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl py-3 px-4 text-white text-sm outline-none"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-cyan-500/20"
+          >
+            تأكيد وإرسال طلب الإيداع
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* --- WITHDRAW SCREEN --- */
+function WithdrawScreen({ user, users, setUsers, transactions, setTransactions, setActiveTab }) {
+  const [amount, setAmount] = useState('');
+  const [wallet, setWallet] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // RULE CHECK: Must be at least VIP1 to withdraw
+  const isVip0 = user.vipLevel === 'VIP0';
+
+  const handleWithdrawSubmit = (e) => {
+    e.preventDefault();
+
+    if (isVip0) {
+      alert('عذراً! لا يمكن السحب لحسابات VIP0. يجب إجراء إيداع بمبلغ 100 ج.م للترقية إلى VIP1 وفتح إمكانية السحب.');
+      return;
+    }
+
+    const withdrawVal = Number(amount);
+
+    if (!withdrawVal || withdrawVal <= 0) {
+      alert('يرجى إدخال مبلغ سحب صحيح');
+      return;
+    }
+
+    if (withdrawVal > user.balance) {
+      alert('رصيدك الحالي غير كافي لإتمام هذه العملية');
+      return;
+    }
+
+    const updatedUsers = users.map(u => {
+      if (u.phone === user.phone) {
+        return { ...u, balance: u.balance - withdrawVal };
+      }
+      return u;
+    });
+
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      userId: user.id,
+      phone: user.phone,
+      type: 'withdraw',
+      amount: withdrawVal,
+      walletNumber: wallet,
+      status: 'pending',
+      date: new Date().toLocaleString('ar-EG')
+    };
+
+    setUsers(updatedUsers);
+    setTransactions([newTx, ...transactions]);
+    setSuccessMsg('تم تقديم طلب السحب وخصم المبلغ مؤقتاً. الطلب قيد المراجعة من المشرف.');
+    setAmount('');
+    setWallet('');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+        <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+          <ArrowUpRight className="w-5 h-5 text-indigo-400" />
+          <span>سحب الأرباح</span>
+        </h2>
+        <p className="text-xs text-slate-400 mb-6">سحب الأرباح إلى محفظتك الإلكترونية الشخصية</p>
+
+        {/* LOCKED WITHDRAWAL NOTICE FOR VIP0 */}
+        {isVip0 ? (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 text-center space-y-4">
+            <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-amber-300 text-sm">خاصية السحب مغلقة لمستوى VIP 0</h3>
+            <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+              لتمكين عمليات السحب وحماية النظام، يلزم إجراء إيداع بقيمة <strong className="text-amber-400">100 ج.م</strong> لترقية الحساب إلى <strong className="text-amber-400">VIP 1</strong> والحصول على 5 مهام إضافية كهدية!
+            </p>
+            <button
+              onClick={() => setActiveTab('deposit')}
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition"
+            >
+              الانتقال لصفحة الإيداع والترقية (100 ج.م)
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6 flex justify-between items-center">
+              <span className="text-xs text-slate-400">الرصيد المتاح للسحب:</span>
+              <span className="font-bold text-lg text-emerald-400">{user.balance.toLocaleString('ar-EG')} ج.م</span>
+            </div>
+
+            {successMsg && (
+              <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-400 text-xs">
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleWithdrawSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-2">المبلغ المراد سحبه</label>
+                <input
+                  type="number"
+                  placeholder="المبلغ بالجنية"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl py-3 px-4 text-white text-sm outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-2">رقم المحفظة المستقبلة (فودافون كاش / أورنج / اتصالات)</label>
+                <input
+                  type="tel"
+                  placeholder="01xxxxxxxxx"
+                  value={wallet}
+                  onChange={(e) => setWallet(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl py-3 px-4 text-white text-sm outline-none"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-500/20"
+              >
+                تأكيد طلب السحب
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* --- PROFILE SCREEN --- */
+function ProfileScreen({ user, transactions, onLogout }) {
+  const userTxHistory = transactions.filter(t => t.phone === user.phone);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col items-center text-center">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-500 to-violet-600 flex items-center justify-center text-white text-2xl font-bold shadow-xl mb-4">
+          {user.phone.slice(-2)}
+        </div>
+        <h2 className="text-xl font-bold text-white dir-ltr">{user.phone}</h2>
+        <span className="mt-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold rounded-full">
+          مستوى العضوية: {user.vipLevel}
+        </span>
+
+        <div className="w-full grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-800">
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80">
+            <p className="text-[11px] text-slate-400">تاريخ الانضمام</p>
+            <p className="text-xs font-bold text-slate-200 mt-1">{user.createdAt}</p>
+          </div>
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80">
+            <p className="text-[11px] text-slate-400">حالة الحساب</p>
+            <p className="text-xs font-bold text-emerald-400 mt-1">نشط وموثق</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+        <h3 className="font-bold text-slate-200 text-sm mb-4">سجل العمليات (إيداع وسحب)</h3>
+        {userTxHistory.length === 0 ? (
+          <p className="text-xs text-slate-500 text-center py-6">لا توجد عمليات سابقة مسجلة</p>
+        ) : (
+          <div className="space-y-3">
+            {userTxHistory.map((tx) => (
+              <div key={tx.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                    tx.type === 'deposit' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                  }`}>
+                    {tx.type === 'deposit' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">
+                      {tx.type === 'deposit' ? 'إيداع رصيد' : 'سحب أرباح'}
+                    </p>
+                    <p className="text-[10px] text-slate-500">{tx.date}</p>
+                  </div>
+                </div>
+
+                <div className="text-left">
+                  <p className={`text-xs font-bold ${tx.type === 'deposit' ? 'text-emerald-400' : 'text-slate-200'}`}>
+                    {tx.type === 'deposit' ? '+' : '-'}{tx.amount} ج.م
+                  </p>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full inline-block mt-1 ${
+                    tx.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                    tx.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                    'bg-amber-500/10 text-amber-400'
+                  }`}>
+                    {tx.status === 'completed' ? 'مكتمل' : tx.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button 
+        onClick={onLogout}
+        className="w-full py-3.5 bg-red-500/10 border border-red-500/20 text-red-400 font-bold rounded-2xl text-sm hover:bg-red-500/20 transition flex items-center justify-center gap-2"
+      >
+        <LogOut className="w-4 h-4" />
+        <span>تسجيل الخروج من الحساب</span>
+      </button>
+    </div>
+  );
+}
+
+/* --- SUPPORT SCREEN --- */
+function SupportScreen() {
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center">
+        <div className="w-16 h-16 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan-500/20">
+          <Headset className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">خدمة العملاء والدعم الفني</h2>
+        <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+          فريق الدعم المالي متواجد على مدار 24 ساعة للمساعدة في حل مشاكل وتأكيدات الإيداع والسحب.
+        </p>
+
+        <div className="mt-8 space-y-3">
+          <a
+            href="https://telegram.org"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-2xl text-sm transition flex items-center justify-center gap-2"
+          >
+            <span>التواصل المباشر عبر تلجرام (Telegram)</span>
+          </a>
+          <a
+            href="https://whatsapp.com"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-sm transition flex items-center justify-center gap-2"
+          >
+            <span>مراسلة الدعم الفني واتساب (WhatsApp)</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   3. ADMIN DASHBOARD (EXCLUSIVELY FOR 01115081946)
+   ========================================================================= */
+function AdminDashboard({ admin, users, setUsers, transactions, setTransactions, onLogout }) {
+  const [activeTab, setActiveTab] = useState('transactions');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [taskSettingsUser, setTaskSettingsUser] = useState(null);
+
+  const [amountAdjustment, setAmountAdjustment] = useState('');
+  const [customTasksCount, setCustomTasksCount] = useState(5);
+  const [customEarningsInput, setCustomEarningsInput] = useState('');
+
+  // Handle Approve Deposit (Automatically Upgrades VIP0 to VIP1 if deposit >= 100)
+  const handleApproveTx = (tx) => {
+    const updatedTx = transactions.map(t => t.id === tx.id ? { ...t, status: 'completed' } : t);
+
+    if (tx.type === 'deposit') {
+      const updatedUsers = users.map(u => {
+        if (u.phone === tx.phone) {
+          const isEligibleForVip1 = u.vipLevel === 'VIP0' && tx.amount >= 100;
+          return { 
+            ...u, 
+            balance: u.balance + tx.amount,
+            vipLevel: isEligibleForVip1 ? 'VIP1' : u.vipLevel,
+            completedTasksToday: isEligibleForVip1 ? 0 : u.completedTasksToday // Reset tasks so they get 5 new tasks for VIP1
+          };
+        }
+        return u;
+      });
+      setUsers(updatedUsers);
+    }
+
+    setTransactions(updatedTx);
+  };
+
+  const handleRejectTx = (tx) => {
+    const updatedTx = transactions.map(t => t.id === tx.id ? { ...t, status: 'rejected' } : t);
+
+    if (tx.type === 'withdraw') {
+      const updatedUsers = users.map(u => {
+        if (u.phone === tx.phone) {
+          return { ...u, balance: u.balance + tx.amount };
+        }
+        return u;
+      });
+      setUsers(updatedUsers);
+    }
+
+    setTransactions(updatedTx);
+  };
+
+  const handleAdjustBalance = (type) => {
+    if (!selectedUser || !amountAdjustment || Number(amountAdjustment) <= 0) return;
+
+    const val = Number(amountAdjustment);
+    const updatedUsers = users.map(u => {
+      if (u.phone === selectedUser.phone) {
+        const newBalance = type === 'add' ? u.balance + val : Math.max(0, u.balance - val);
+        return { ...u, balance: newBalance };
+      }
+      return u;
+    });
+
+    setUsers(updatedUsers);
+    setAmountAdjustment('');
+    setSelectedUser(null);
+  };
+
+  const handleChangeVip = (phone, newLevel) => {
+    const updatedUsers = users.map(u => {
+      if (u.phone === phone) {
+        return {
+          ...u,
+          vipLevel: newLevel,
+          completedTasksToday: 0 // Give new task quota on upgrade
+        };
+      }
+      return u;
+    });
+    setUsers(updatedUsers);
+  };
+
+  // Developer Customization for tasks & earnings per task
+  const handleSaveTaskSettings = () => {
+    if (!taskSettingsUser) return;
+
+    let earningsArray = null;
+    if (customEarningsInput.trim()) {
+      earningsArray = customEarningsInput.split(',').map(n => Number(n.trim()) || 0);
+    }
+
+    const updatedUsers = users.map(u => {
+      if (u.phone === taskSettingsUser.phone) {
+        return {
+          ...u,
+          maxDailyTasks: Number(customTasksCount) || 5,
+          customTaskEarnings: earningsArray
+        };
+      }
+      return u;
+    });
+
+    setUsers(updatedUsers);
+    setTaskSettingsUser(null);
+  };
+
+  const pendingTransactions = transactions.filter(t => t.status === 'pending');
+
+  return (
+    <div className="min-h-screen bg-slate-950 p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+      <header className="bg-gradient-to-r from-red-900/40 via-slate-900 to-slate-900 border border-red-500/30 rounded-3xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-red-500/20 border border-red-500/40 rounded-2xl flex items-center justify-center text-red-400">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white">لوحة تحكم المشرف / المطور</h1>
+              <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-500/30">تحكم كامل</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">المستخدم الحالي: <span className="text-cyan-400 font-mono font-bold">01115081946</span></p>
+          </div>
+        </div>
+
+        <button
+          onClick={onLogout}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-2"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>خروج المشرف</span>
+        </button>
+      </header>
+
+      <div className="flex gap-3 border-b border-slate-800 pb-3">
+        <button
+          onClick={() => setActiveTab('transactions')}
+          className={`px-5 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 ${
+            activeTab === 'transactions' 
+              ? 'bg-cyan-500 text-slate-950' 
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>طلبات الإيداع والسحب المعلقة ({pendingTransactions.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-5 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 ${
+            activeTab === 'users' 
+              ? 'bg-cyan-500 text-slate-950' 
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+          }`}
+        >
+          <User className="w-4 h-4" />
+          <span>إدارة الحسابات والمهام ({users.length})</span>
+        </button>
+      </div>
+
+      {activeTab === 'transactions' && (
+        <div className="space-y-4">
+          <h3 className="font-bold text-slate-200 text-sm">قائمة الطلبات قيد المراجعة</h3>
+          {pendingTransactions.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center text-slate-500 text-xs">
+              لا توجد طلبات إيداع أو سحب معلقة حالياً
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pendingTransactions.map(tx => (
+                <div key={tx.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        tx.type === 'deposit' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'
+                      }`}>
+                        {tx.type === 'deposit' ? 'طلب إيداع (ترقية)' : 'طلب سحب'}
+                      </span>
+                      <h4 className="font-mono font-bold text-white text-base mt-2">{tx.phone}</h4>
+                      <p className="text-[11px] text-slate-500">{tx.date}</p>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xl font-extrabold text-cyan-400">{tx.amount} ج.م</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-400">
+                    <span>المحفظة المستهدفة: </span>
+                    <strong className="text-slate-200 font-mono">{tx.walletNumber}</strong>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => handleApproveTx(tx)}
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>موافقة وترقية</span>
+                    </button>
+                    <button
+                      onClick={() => handleRejectTx(tx)}
+                      className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>رفض الطلب</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="space-y-4">
+          <h3 className="font-bold text-slate-200 text-sm">قائمة المستخدمين في النظام</h3>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs text-slate-300">
+                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="p-4">رقم الهاتف</th>
+                    <th className="p-4">الرصيد الحالي</th>
+                    <th className="p-4">مستوى VIP</th>
+                    <th className="p-4">عدد المهام اليومية</th>
+                    <th className="p-4">إجراءات المطور</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-850">
+                      <td className="p-4 font-mono font-bold text-slate-100">{u.phone}</td>
+                      <td className="p-4 font-bold text-emerald-400">{u.balance.toLocaleString('ar-EG')} ج.م</td>
+                      <td className="p-4">
+                        <select
+                          value={u.vipLevel}
+                          onChange={(e) => handleChangeVip(u.phone, e.target.value)}
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-cyan-400 font-bold outline-none"
+                        >
+                          <option value="VIP0">VIP0 (مبتدئ)</option>
+                          <option value="VIP1">VIP1</option>
+                          <option value="VIP2">VIP2</option>
+                          <option value="VIP3">VIP3</option>
+                          <option value="VIP4">VIP4</option>
+                          <option value="VIP5">VIP5</option>
+                        </select>
+                      </td>
+                      <td className="p-4 font-bold text-indigo-400">
+                        {u.completedTasksToday} / {u.maxDailyTasks || 5}
+                      </td>
+                      <td className="p-4 flex gap-2">
+                        <button
+                          onClick={() => setSelectedUser(u)}
+                          className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold hover:bg-cyan-500/20 transition"
+                        >
+                          تعديل الرصيد
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTaskSettingsUser(u);
+                            setCustomTasksCount(u.maxDailyTasks || 5);
+                            setCustomEarningsInput(u.customTaskEarnings ? u.customTaskEarnings.join(', ') : '');
+                          }}
+                          className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded-lg font-bold hover:bg-purple-500/20 transition flex items-center gap-1"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          <span>ترتيب المهام</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BALANCE MODAL */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md space-y-4">
+            <h3 className="font-bold text-white text-base">تعديل رصيد المستخدم</h3>
+            <p className="text-xs text-slate-400">رقم الهاتف: <span className="font-mono text-cyan-400">{selectedUser.phone}</span></p>
+            
+            <div>
+              <label className="block text-xs text-slate-300 mb-2">أدخل المبلغ (جنية):</label>
+              <input
+                type="number"
+                value={amountAdjustment}
+                onChange={(e) => setAmountAdjustment(e.target.value)}
+                placeholder="المبلغ"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white text-sm outline-none"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => handleAdjustBalance('add')}
+                className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+              >
+                إضافة للرصيد (+)
+              </button>
+              <button
+                onClick={() => handleAdjustBalance('subtract')}
+                className="flex-1 py-2.5 bg-rose-600 text-white font-bold rounded-xl text-xs"
+              >
+                خصم من الرصيد (-)
+              </button>
+            </div>
+
+            <button
+              onClick={() => setSelectedUser(null)}
+              className="w-full py-2 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs mt-2"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TASK & EARNINGS CUSTOMIZATION MODAL */}
+      {taskSettingsUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md space-y-4">
+            <h3 className="font-bold text-white text-base">تخصيص المهام والأرباح المحددة</h3>
+            <p className="text-xs text-slate-400">للمستخدم: <span className="font-mono text-purple-400">{taskSettingsUser.phone}</span></p>
+            
+            <div>
+              <label className="block text-xs text-slate-300 mb-2">عدد المهام المتاحة للمستخدم:</label>
+              <input
+                type="number"
+                value={customTasksCount}
+                onChange={(e) => setCustomTasksCount(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white text-sm outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-300 mb-1">تحديد ربح كل مهمة بالتفصيل (مفصولة بفاصلة):</label>
+              <p className="text-[10px] text-slate-500 mb-2">مثال لـ 5 مهام: 10, 15, 20, 12, 18 (اتركها فارغة للتوزيع العشوائي الآلي)</p>
+              <input
+                type="text"
+                value={customEarningsInput}
+                onChange={(e) => setCustomEarningsInput(e.target.value)}
+                placeholder="10, 15, 25, 10, 15"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white text-sm outline-none dir-ltr"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleSaveTaskSettings}
+                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition"
+              >
+                حفظ الإعدادات
+              </button>
+              <button
+                onClick={() => setTaskSettingsUser(null)}
+                className="py-2.5 px-4 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
